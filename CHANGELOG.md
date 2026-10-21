@@ -15,3 +15,4 @@ Format mengikuti Keep a Changelog; versi mengikuti TownHall.
 
 ### Ditambahkan (PDR-WEB-004)
 - Halaman `/dasbor` dengan enam angka dari `GET /web/dashboard`; grafik stockoutRate 90 hari, waste per kategori, dan top-10 item habis menunggu kontrak backend (2026-10-21).
+- Tindak lanjut (bergantung pada pedaree-backend-service#16): kontrak `DasborWeb` lengkap; `/dasbor` kini menampilkan grafik stockoutRate 90 hari, rata-rata vs target 8%, tabel waste per kategori (3 bulan), dan 10 item paling sering habis. Tombol "Naikkan minimum" tetap menunggu endpoint ubah `stokMinimum` (2026-10-22).
