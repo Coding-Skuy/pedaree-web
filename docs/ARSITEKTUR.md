@@ -4,17 +4,16 @@ TownHall: https://github.com/Coding-Skuy/Pedaree-TownHall
 
 ## Lapisan
 
-1. Rute `src/app/`: `/stok`, `/mutasi`, `/resep-hemat`.
-2. Komponen `src/components/`: tabel stok, garis waktu mutasi, kartu resep.
-3. Pustaka `src/lib/`: klien `fetch` ke backend Pedaree dan API resep Pawonee.
+1. Rute `src/routes/` (SvelteKit 2): halaman `+page.svelte`, tata letak `+layout.svelte`, muat data server `+page.server.ts`.
+2. Komponen Svelte 5 (runes) di `src/lib/`.
+3. Pustaka `src/lib/`: klien `fetch` ke backend Pedaree dan util tampilan stok.
 
 ## Alur utama
 
-Peramban meminta `/stok` -> server Next.js mengambil `GET /v1/stok` dari
-backend -> halaman merender tabel beserta lencana kedaluwarsa. Halaman
-`/resep-hemat` menggabungkan stok dengan resep Pawonee.
+Peramban meminta halaman -> server SvelteKit (adapter Bun) memanggil API backend server-ke-server -> halaman dirender SSR.
+Web tidak menghitung stok, FEFO, maupun sinyal TitipO; angka resmi berasal dari server (ADR-0001).
 
 ## Keputusan
 
-- App Router Next.js 15.2.4 dengan perenderan sisi server untuk tabel stok.
-- Status kedaluwarsa dihitung di server agar konsisten dengan seluler.
+- Bun + Svelte 5 + SvelteKit 2 + TypeScript (menggantikan Next.js/React; lihat ADR-0003).
+- Rute produk (`/dapur`, `/dasbor`) dibangun pada tiket PDR-WEB-003/004.
