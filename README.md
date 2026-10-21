@@ -19,21 +19,19 @@ Kontrak lintas divisi (detail: `docs/MODUL-PANTRY-RESEP.md`):
 - Perubahan definisi resep dilakukan di Pawonee; web Pedaree bersifat baca saja
   terhadap data resep.
 
-## Teknologi (versi dikunci)
+## Teknologi (versi dikunci eksak)
 
-- Node.js 22.14.0
-- Next.js 15.2.4
-- React 19.0.0
-- TypeScript 5.7.3
-- Tailwind CSS 4.0.0
+- Bun 1.4.2
+- Svelte 5.28.7 + SvelteKit 2.22.5 (adapter `svelte-adapter-bun`)
+- TypeScript 5.9.2
+- Vite 6.3.5, Vitest 3.2.4
 
-Lihat `package.json` sebagai sumber kebenaran versi.
+Lihat `package.json` dan `bun.lock` sebagai sumber kebenaran versi. Next.js/React dilarang.
 
 ## Struktur
 
 ```text
-src/app/           rute Next.js App Router
-src/components/    komponen UI pantry
+src/routes/        rute SvelteKit (+page.svelte, +layout.svelte, +page.server.ts)
 src/lib/           klien API backend dan util stok
 docs/              arsitektur dan kontrak modul
 ```
@@ -41,13 +39,13 @@ docs/              arsitektur dan kontrak modul
 ## Cara jalan
 
 ```bash
-npm ci
-npm run dev
-npm run build
+bun install
+bun run dev        # http://localhost:5173
+bun run check
+bun run test
+bun run build
 ```
-
-Buka `http://localhost:3000` setelah `dev` berjalan.
 
 ## CI
 
-Workflow `.github/workflows/ci.yml` menjalankan lint, uji, dan build produksi.
+Workflow `.github/workflows/ci.yml` menjalankan `bun run check`, uji, dan build produksi dengan Bun.
