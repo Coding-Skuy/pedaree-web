@@ -20,6 +20,7 @@ export type PemakaianHasil = S["PemakaianHasil"];
 export type DasborWeb = S["DasborWeb"];
 export type ImporCsvHasil = S["ImporCsvHasil"];
 export type ParcelTitipo = S["ParcelTitipo"];
+export type BatchBuat = S["BatchBuat"];
 export type DrafMasukItem = S["DrafMasukItem"];
 
 export interface HalamanItem {
@@ -29,3 +30,4 @@ export interface HalamanItem {
 
 export const KATEGORI: readonly Kategori[] = ["SAYUR", "BUMBU", "BUAH", "PROTEIN", "KERING", "CAIR", "BEKU", "SISA"];
 export const STATUS_STOK: readonly StatusStok[] = ["AMAN", "MENIPIS", "HABIS"];
+export const SATUAN: readonly Satuan[] = ["gram", "kg", "ml", "liter", "sdm", "sdt", "pcs", "siung", "buah", "ikat", "batang", "bonggol", "lembar"];

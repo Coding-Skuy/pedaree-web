@@ -46,6 +46,9 @@ describe("terlindungi", () => {
     expect(terlindungi("/dapur/itm_1")).toBe(true);
     expect(terlindungi("/dasbor")).toBe(true);
     expect(terlindungi("/api/pakai")).toBe(true);
+    expect(terlindungi("/ekspor/stok")).toBe(true);
+    expect(terlindungi("/impor")).toBe(true);
+    expect(terlindungi("/titipo")).toBe(true);
     expect(terlindungi("/masuk")).toBe(false);
     expect(terlindungi("/dapurku")).toBe(false);
   });

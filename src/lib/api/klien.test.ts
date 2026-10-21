@@ -76,4 +76,39 @@ describe("buatKlien", () => {
     expect(d.totalItemAktif).toBe(1);
     expect((panggilan[0].init.headers as Record<string, string>).Cookie).toBe("pedaree_sess=tok");
   });
+
+  it("imporCsv mengirim multipart `berkas` tanpa Content-Type manual", async () => {
+    const { f, panggilan } = palsu(202, { diterima: 1, ditolak: 1, galatBaris: [{ baris: 3, pesan: "satuan tidak berlaku" }] });
+    const h = await buatKlien({ ...opsi, fetch: f }).imporCsv(new Blob(["a,b"], { type: "text/csv" }), "stok.csv");
+    const { url, init } = panggilan[0];
+    expect(url).toBe("http://api.test/v1/web/import/csv");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect(((init.body as FormData).get("berkas") as File).name).toBe("stok.csv");
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+    expect(h.galatBaris[0]).toEqual({ baris: 3, pesan: "satuan tidak berlaku" });
+  });
+
+  it("ekspor stok/mutasi meneruskan kueri dan mengembalikan teks CSV", async () => {
+    const f = (async (url: string) => new Response(`url=${url}`, { status: 200 })) as unknown as typeof fetch;
+    const k = buatKlien({ ...opsi, fetch: f });
+    expect(await k.eksporStokCsv("SAYUR")).toBe("url=http://api.test/v1/web/export/csv?kategori=SAYUR");
+    expect(await k.eksporMutasiCsv("2026-10-01", "2026-10-21")).toBe("url=http://api.test/v1/web/export/mutasi?dari=2026-10-01&sampai=2026-10-21");
+  });
+
+  it("parcel DITERIMA dan draf masuk memakai endpoint /web/titipo", async () => {
+    const { f, panggilan } = palsu(200, { data: [], draf: [] });
+    const k = buatKlien({ ...opsi, fetch: f });
+    await k.daftarParcelTitipo();
+    await k.draftMasukDariParcel("pcl 1");
+    expect(panggilan[0].url).toBe("http://api.test/v1/web/titipo/parcels?status=DITERIMA");
+    expect(panggilan[1].url).toBe("http://api.test/v1/web/titipo/parcels/pcl%201/draft-masuk");
+    expect(panggilan[1].init.method).toBe("POST");
+  });
+
+  it("catatMasuk mengirim sumber MASUK_TITIPO", async () => {
+    const { f, panggilan } = palsu(201, { id: "btc_1" });
+    await buatKlien({ ...opsi, fetch: f }).catatMasuk({ pantryItemId: "itm_1", jumlah: 500, satuan: "gram", tanggalMasuk: "2026-10-21", lokasi: "KULKAS_BAWAH", sumber: "MASUK_TITIPO" });
+    expect(panggilan[0].url).toBe("http://api.test/v1/pantry/batches");
+    expect(JSON.parse(panggilan[0].init.body as string).sumber).toBe("MASUK_TITIPO");
+  });
 });

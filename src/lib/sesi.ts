@@ -43,7 +43,7 @@ export function lanjutAman(lanjut: string | null | undefined, awal = "/dapur"): 
   return lanjut;
 }
 
-export const RUTE_TERLINDUNGI = ["/dapur", "/dasbor", "/impor", "/titipo", "/api"];
+export const RUTE_TERLINDUNGI = ["/dapur", "/dasbor", "/impor", "/titipo", "/ekspor", "/api"];
 
 export function terlindungi(path: string): boolean {
   return RUTE_TERLINDUNGI.some((r) => path === r || path.startsWith(r + "/"));

@@ -1,5 +1,10 @@
 import type {
   AppError,
+  BatchBuat,
+  DrafMasukItem,
+  ImporCsvHasil,
+  ParcelTitipo,
+  StokBatch,
   DasborWeb,
   HalamanItem,
   Kategori,
@@ -92,6 +97,13 @@ export function buatKlien(opsi: KlienOpsi) {
     return (await res.json()) as T;
   }
 
+  /** Respons mentah (CSV/multipart). `body` FormData: Content-Type diisi otomatis oleh fetch. */
+  async function mentah(method: "GET" | "POST", path: string, { query, body }: { query?: Minta["query"]; body?: FormData } = {}): Promise<Response> {
+    const res = await f(url(path, query), { method, headers: header(), body, cache: "no-store" });
+    if (!res.ok) throw await galat(res);
+    return res;
+  }
+
   return {
     login: (b: LoginRequest) => minta<TokenPasangan>("POST", "/auth/login", { body: b }),
     refresh: (tokenRefresh: string) => minta<TokenPasangan>("POST", "/auth/refresh", { body: { tokenRefresh } }),
@@ -100,10 +112,15 @@ export function buatKlien(opsi: KlienOpsi) {
     detailItem: (id: string) => minta<PantryItemDetail>("GET", `/pantry/items/${encodeURIComponent(id)}`),
     catatPakai: (b: PemakaianRequest) => minta<PemakaianHasil>("POST", "/pantry/consume", { body: b }),
     dasbor: () => minta<DasborWeb>("GET", "/web/dashboard"),
-    /** Dipakai modul lanjutan (dasbor, CSV, parcel). */
-    _minta: minta,
-    _header: header,
-    _url: url,
-    _galat: galat,
+    catatMasuk: (b: BatchBuat) => minta<StokBatch>("POST", "/pantry/batches", { body: b }),
+    imporCsv: async (berkas: Blob, nama = "impor.csv") => {
+      const fd = new FormData();
+      fd.set("berkas", berkas, nama);
+      return (await (await mentah("POST", "/web/import/csv", { body: fd })).json()) as ImporCsvHasil;
+    },
+    eksporStokCsv: async (kategori?: Kategori) => (await mentah("GET", "/web/export/csv", { query: { kategori } })).text(),
+    eksporMutasiCsv: async (dari?: string, sampai?: string) => (await mentah("GET", "/web/export/mutasi", { query: { dari, sampai } })).text(),
+    daftarParcelTitipo: () => minta<{ data: ParcelTitipo[] }>("GET", "/web/titipo/parcels", { query: { status: "DITERIMA" } }),
+    draftMasukDariParcel: (id: string) => minta<{ draf: DrafMasukItem[] }>("POST", `/web/titipo/parcels/${encodeURIComponent(id)}/draft-masuk`),
   };
 }
