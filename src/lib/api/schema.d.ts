@@ -296,7 +296,17 @@ export interface paths {
         };
         /**
          * Ringkasan dasbor web (SSR)
-         * @description Diakses SSR server-ke-server memakai service key, bukan token pengguna.
+         * @description Diakses SSR server-ke-server memakai `X-Service-Key` + `X-Household-Id`; token pengguna
+         *     (Bearer) juga diterima. Cookie sesi belum didukung server pada v1.0.0.
+         *
+         *     Metrik diturunkan dari buku mutasi (`metrik/10-stockout-dan-waste.md`); ASUMSI:
+         *     stok historis dihitung ulang dari `mutasi_stok` per akhir hari WIB (tanpa tabel snapshot),
+         *     hanya item yang kini tidak diarsip; `stockoutRate` = 100 x item HABIS / item aktif per hari;
+         *     waste dalam gram (ml dihitung 1:1, satuan hitung memakai bobot acuan, baris tak dapat
+         *     dikonversi dilewati) untuk bulan berjalan + 2 bulan sebelumnya; "paling sering habis" =
+         *     jumlah episode HABIS dalam 90 hari lalu jumlah hari HABIS; `segeraKedaluwarsa3Hari` =
+         *     batch berisi dengan kedaluwarsa 0 sampai 3 hari dari hari ini.
+         *
          */
         get: operations["dasborWeb"];
         put?: never;
@@ -417,15 +427,29 @@ export interface webhooks {
          *
          *     - **Jenis terkunci (3):** `stok.menipis`, `stok.habis`, `kedaluwarsa.dekat`.
          *     - **Pemicu + dedup produsen:** transisi ke menipis dan ke habis, serta kedaluwarsa dekat;
-         *       maksimal **1 sinyal per item per 24 jam** (BR-301).
+         *       maksimal **1 sinyal per item per JENIS per 24 jam** (BR-301): `stok.menipis` dan `stok.habis`
+         *       dedup sendiri-sendiri, jadi menipis pagi lalu habis malam sama-sama terkirim (kunci
+         *       idempoten konsumen `item_id + jenis + tanggal`; ADR-0010 bagian pembaruan). Menipis = stok yang dapat dipakai turun
+         *       dari di atas `stokMinimum` ke `<= stokMinimum` (dan > 0); habis = turun ke 0 (dari
+         *       mana pun, satu sinyal saja). Kedaluwarsa dekat = batch yang tersisa 0 sampai 3 hari
+         *       (SOP SEGERA/HARI_INI), dievaluasi job `expiry-sweep` setiap hari pukul 06:00 WIB.
+         *     - **Isi payload:** `sisa` dan `satuan` dalam satuan simpan item. `kedaluwarsa` = batch
+         *       terdekat yang masih dapat dipakai; bila stok habis atau item tanpa tanggal kedaluwarsa,
+         *       tanggal batch terakhir atau, jika tidak ada, tanggal sinyal (kontrak mewajibkan field
+         *       ini). Untuk `kedaluwarsa.dekat`, `sisa` = jumlah batch dalam jendela 3 hari.
+         *       `recipe_id` terisi bila pemicunya `POST /pantry/consume` dengan `sumberResepId`.
          *     - **Payload wajib:** `item`, `sisa`, `satuan` (13 baku), `kedaluwarsa`, `recipe_id` Pawonee
-         *       (boleh kosong), ditambah `jenis`, `item_id`, `tanggal` (kunci idempoten konsumen).
+         *       (boleh kosong), ditambah `jenis`, `item_id`, `tanggal` (kunci idempoten konsumen `item_id + jenis + tanggal`).
          *     - **Header:** `X-Service-Key` (service key least-privilege milik Pedaree).
          *     - **Respons penerima:** `201 {"status":"dicatat_sebagai_anjuran"}`; duplikat
-         *       (`item_id + tanggal`) `200 {"status":"duplikat_diabaikan"}` bukan galat; `422
+         *       (`item_id + jenis + tanggal`) `200 {"status":"duplikat_diabaikan"}` bukan galat; `422
          *       JENIS_SINYAL_TIDAK_DIKENAL` untuk jenis di luar tiga.
          *     - **Sifat:** anjuran restock saja — TIDAK PERNAH membuat pesanan otomatis; relevansi 48 jam.
-         *     - **Kegagalan:** retry 3x (5/30/300 detik) lalu DLQ.
+         *     - **Kegagalan:** sinyal ditulis ke outbox pada transaksi yang sama dengan mutasi stok
+         *       (kegagalan TitipO tidak mengganggu pencatatan stok). Kegagalan sementara (jaringan,
+         *       5xx, 408, 429): retry 3x dengan jeda 5/30/300 detik lalu DLQ. Kegagalan permanen
+         *       (4xx lain, mis. `422 JENIS_SINYAL_TIDAK_DIKENAL`): langsung DLQ. `200 duplikat_diabaikan`
+         *       dianggap sukses.
          *
          */
         post: operations["kirimSinyalPedareeStok"];
@@ -654,11 +678,11 @@ export interface components {
         /** @description Payload kontrak bilateral `pedaree.stok.v1` (identik dengan skema penerima TitipO). */
         SinyalPedareeStok: {
             jenis: components["schemas"]["JenisSinyal"];
-            /** @description Bagian pertama kunci idempoten konsumen. */
+            /** @description Bagian pertama kunci idempoten konsumen (`item_id + jenis + tanggal`). */
             item_id: string;
             /**
              * Format: date
-             * @description Bagian kedua kunci idempoten (`item_id + tanggal`).
+             * @description Bagian ketiga kunci idempoten (`item_id + jenis + tanggal`; tanggal kalender WIB).
              */
             tanggal: string;
             /** @description Nama bahan. */
@@ -678,6 +702,33 @@ export interface components {
             /** @description Waste bulan berjalan dalam gram (target kurang dari 1.500 g per rumah tangga per bulan). */
             wasteBulanGram: number;
             sinyalTerkirim7Hari: number;
+            /** @description Satu titik per hari WIB, 90 hari berakhir hari ini, urut tanggal naik. Untuk grafik garis dasbor web. */
+            stockoutRate90Hari: {
+                /** Format: date */
+                tanggal: string;
+                /** @description Persen item HABIS dari item aktif hari itu (1 desimal); 0 bila tidak ada item aktif. */
+                stockoutRate: number;
+            }[];
+            /** @description Rata-rata stockoutRate harian 90 hari (target kurang dari atau sama dengan 8). */
+            stockoutRateRata90Hari: number;
+            /** @description Waste gram per bulan WIB dan kategori, bulan berjalan + 2 bulan sebelumnya; hanya baris bernilai. Urut bulan lalu kategori. */
+            wastePerKategori: {
+                /** @example 2026-10 */
+                bulan: string;
+                kategori: components["schemas"]["Kategori"];
+                wasteGram: number;
+            }[];
+            /** @description Sampai 10 item paling sering habis dalam 90 hari (episode HABIS, lalu hari HABIS, lalu nama). */
+            itemSeringHabis: {
+                pantryItemId: string;
+                nama: string;
+                kategori: components["schemas"]["Kategori"];
+                kejadianHabis: number;
+                hariHabis: number;
+                /** @description Stok minimum dalam satuanTampil (untuk tombol Naikkan minimum). */
+                stokMinimum: number;
+                satuanTampil: components["schemas"]["Satuan"];
+            }[];
         };
         ImporCsvHasil: {
             diterima: number;
@@ -899,8 +950,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -919,6 +968,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             429: components["responses"]["BatasLaju"];
             500: components["responses"]["GalatServer"];
@@ -974,8 +1024,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path: {
                 id: string;
@@ -993,6 +1041,7 @@ export interface operations {
                     "application/json": components["schemas"]["PantryItemDetail"];
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             404: components["responses"]["TidakAda"];
             500: components["responses"]["GalatServer"];
@@ -1221,8 +1270,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1240,6 +1287,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             500: components["responses"]["GalatServer"];
         };
@@ -1253,8 +1301,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1272,6 +1318,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             500: components["responses"]["GalatServer"];
         };
@@ -1327,8 +1374,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1344,6 +1389,7 @@ export interface operations {
                     "application/json": components["schemas"]["DasborWeb"];
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             500: components["responses"]["GalatServer"];
         };
@@ -1393,8 +1439,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1410,6 +1454,7 @@ export interface operations {
                     "text/csv": string;
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             500: components["responses"]["GalatServer"];
         };
@@ -1423,8 +1468,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1453,8 +1496,6 @@ export interface operations {
             header: {
                 /** @description ID rumah tangga pemilik data (`hh_` + ULID). */
                 "X-Household-Id": components["parameters"]["XHouseholdId"];
-                /** @description UUID per permintaan; hasil POST disimpan 24 jam untuk idempotensi. */
-                "X-Request-Id": components["parameters"]["XRequestId"];
             };
             path?: never;
             cookie?: never;
@@ -1472,6 +1513,7 @@ export interface operations {
                     };
                 };
             };
+            400: components["responses"]["Validasi"];
             401: components["responses"]["TidakSah"];
             500: components["responses"]["GalatServer"];
         };
