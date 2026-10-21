@@ -1,5 +1,8 @@
 node_modules/
-.next/
+.svelte-kit/
+build/
 dist/
 .env*
+!.env.example
 .DS_Store
+graphify-out/
