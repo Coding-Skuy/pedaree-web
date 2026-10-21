@@ -15,3 +15,6 @@ Format mengikuti Keep a Changelog; versi mengikuti TownHall.
 
 ### Ditambahkan (PDR-WEB-004)
 - Halaman `/dasbor` dengan enam angka dari `GET /web/dashboard`; grafik stockoutRate 90 hari, waste per kategori, dan top-10 item habis menunggu kontrak backend (2026-10-21).
+
+### Ditambahkan (PDR-WEB-005)
+- `/impor` (impor CSV maks 200 baris dan 512 KB, galat per baris dari server), ekspor `pedaree-stok-YYYYMMDD.csv` dan mutasi `dari`..`sampai`, `/titipo` (parcel DITERIMA menjadi draf Catat Masuk satu klik, lalu simpan sebagai batch `MASUK_TITIPO`) (2026-10-21).
