@@ -11,7 +11,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "gen:api": "openapi-typescript docs/api/pedaree-backend-openapi.yaml -o src/lib/api/schema.d.ts"
   },
   "dependencies": {
     "@sveltejs/kit": "2.22.5",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "5.1.0",
     "@types/node": "22.10.2",
+    "openapi-typescript": "7.9.1",
     "svelte-adapter-bun": "1.0.2",
     "svelte-check": "4.2.2",
     "typescript": "5.9.2",
