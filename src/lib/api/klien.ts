@@ -1,5 +1,6 @@
 import type {
   AppError,
+  DasborWeb,
   HalamanItem,
   Kategori,
   LoginRequest,
@@ -98,6 +99,7 @@ export function buatKlien(opsi: KlienOpsi) {
       minta<HalamanItem>("GET", "/pantry/items", { query: q }),
     detailItem: (id: string) => minta<PantryItemDetail>("GET", `/pantry/items/${encodeURIComponent(id)}`),
     catatPakai: (b: PemakaianRequest) => minta<PemakaianHasil>("POST", "/pantry/consume", { body: b }),
+    dasbor: () => minta<DasborWeb>("GET", "/web/dashboard"),
     /** Dipakai modul lanjutan (dasbor, CSV, parcel). */
     _minta: minta,
     _header: header,

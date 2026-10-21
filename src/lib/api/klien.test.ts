@@ -68,4 +68,12 @@ describe("buatKlien", () => {
     await buatKlien({ ...opsi, fetch: f }).detailItem("a/b");
     expect(panggilan[0].url).toBe("http://api.test/v1/pantry/items/a%2Fb");
   });
+
+  it("dasbor memanggil GET /web/dashboard dengan sesi", async () => {
+    const { f, panggilan } = palsu(200, { totalItemAktif: 1, menipis: 0, habis: 0, segeraKedaluwarsa3Hari: 0, wasteBulanGram: 0, sinyalTerkirim7Hari: 0 });
+    const d = await buatKlien({ ...opsi, fetch: f }).dasbor();
+    expect(panggilan[0].url).toBe("http://api.test/v1/web/dashboard");
+    expect(d.totalItemAktif).toBe(1);
+    expect((panggilan[0].init.headers as Record<string, string>).Cookie).toBe("pedaree_sess=tok");
+  });
 });
